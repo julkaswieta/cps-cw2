@@ -10,6 +10,4 @@ private:
 public:
 	static const int MAX_N = 10;
 	static void CalculateAllSolutions(int N, bool print);
-
-
 };
