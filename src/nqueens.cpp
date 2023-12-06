@@ -1,4 +1,5 @@
 #include "NQueenSolver.h"
+#include <thread>
 
 using namespace std; 
 
@@ -23,6 +24,5 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-    for (int N = 4; N <= NQueenSolver::MAX_N; ++N)
-        NQueenSolver::CalculateAllSolutions(N, true);
+    NQueenSolver::CalculateAllSolutions(false);
 }
