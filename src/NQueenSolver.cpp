@@ -28,6 +28,7 @@ void NQueenSolver::CalculateAllSolutions(bool print)
 			auto totalTime = chrono::duration_cast<chrono::milliseconds>(total).count();
 			//data << totalTime << "\n";
 			meanTime += totalTime;
+			printf("N=%d, solutions=%d, mean time=%f\n", N, (int)solutions.size(), meanTime);
 			/*}
 		meanTime /= (double)TEST_RUNS;*/
 	}
@@ -40,7 +41,7 @@ void NQueenSolver::CalculateAllSolutions(bool print)
 void NQueenSolver::CalculateSolutionsBruteForce(int N, vector<vector<int>>& solutions) {
 	// since there is a single Queen in each row, the number of possibilities are limited to N^N
 	__int64 possibleCombinations = powl(N, N); // use powl abnd __int64 to fit the biggest numbers
-#pragma omp parallel for 
+#pragma omp parallel for shared(solutions)
 	for (__int64 combination = 0; combination < possibleCombinations; combination++)
 	{
 		// this approach uses convertion to N-base number 
@@ -67,8 +68,6 @@ void NQueenSolver::CalculateSolutionsBruteForce(int N, vector<vector<int>>& solu
 			solutions.push_back(temp);
 		}
 	}
-#pragma omp barrier
-	printf("N=%d, solutions=%d\n", N, (int)solutions.size());
 }
 
 /// <summary>
