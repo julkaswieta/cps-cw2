@@ -24,5 +24,6 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-    NQueenSolver::CalculateAllSolutions(false);
+    bool PRINT_SOLUTIONS = false;
+    NQueenSolver::CalculateAllSolutions(PRINT_SOLUTIONS);
 }
