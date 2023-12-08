@@ -8,6 +8,5 @@ private:
 	static void CalculateSolutionsBruteForce(int N, std::vector<std::vector<int>>& solutions);
 
 public:
-	static const int MAX_N = 10;
-	static void CalculateAllSolutions(int N, bool print);
+	static void CalculateAllSolutions(bool print);
 };
