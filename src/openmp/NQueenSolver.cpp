@@ -15,27 +15,32 @@ using namespace std;
 void NQueenSolver::CalculateAllSolutions(bool print)
 {
 	ofstream data("data.csv");
-	for (int N = 1; N <= MAX_N; N++) {
+	for (int N = 4; N <= MAX_N; N++) {
 		data << "N " << N << "\n";
 		double meanTime = 0;
-		//for (int run = 0; run < TEST_RUNS; run++) {
+		int solutionsCount;
+
+		for (int run = 0; run < TEST_RUNS; run++) {
 			vector<vector<int>> solutions;
-			
+
 			auto startTime = chrono::system_clock::now();
 			CalculateSolutionsBruteForce(N, solutions);
 			auto endTime = chrono::system_clock::now();
-			auto total = endTime - startTime;
-			auto totalTime = chrono::duration_cast<chrono::milliseconds>(total).count();
-			//data << totalTime << "\n";
-			meanTime += totalTime;
-			printf("N=%d, solutions=%d, mean time=%f\n", N, (int)solutions.size(), meanTime);
-			/*}
-		meanTime /= (double)TEST_RUNS;*/
-	}
 
-	/*printf("N=%d, solutions=%d\n", N, (int)solutions.size());
-	if (print)
-		PrintSolutions(N, solutions);*/
+			auto total = endTime - startTime;
+			auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
+			data << totalTime << "\n";
+			meanTime += totalTime;
+			solutionsCount = solutions.size();
+			printf("N=%d, run=%d, run time=%lld\n", N, run, totalTime);
+
+			if (run == 0 && print)
+				PrintSolutions(N, solutions);
+		}
+
+		meanTime /= (double)TEST_RUNS;
+		printf("N=%d, solutions=%d, mean time=%f\n", N, solutionsCount, meanTime);
+	}
 }
 
 void NQueenSolver::CalculateSolutionsBruteForce(int N, vector<vector<int>>& solutions) {
@@ -80,17 +85,17 @@ bool NQueenSolver::CheckIfValidSolution(int N, int* rowIndices)
 {
 	// partially adapted from: https://stackoverflow.com/questions/50379511/less-than-n-loops-for-solving-the-n-queens-with-no-use-of-recursion
 	// compare each column's row index to every other column's index
-	for (int column = 0; column < N; column++) 
+	for (int column = 0; column < N; column++)
 	{
-		for (int otherColumn = column + 1; otherColumn <= N; otherColumn++) 
+		for (int otherColumn = column + 1; otherColumn <= N; otherColumn++)
 		{
 			// check for the same row index
 			if (rowIndices[column] == rowIndices[otherColumn])
 				return false;
-			
+
 			// check for diagonals
-			if (abs(rowIndices[column] - rowIndices[otherColumn]) 
-					== abs(column - otherColumn))
+			if (abs(rowIndices[column] - rowIndices[otherColumn])
+				== abs(column - otherColumn))
 				return false;
 		}
 	}
@@ -119,7 +124,7 @@ void NQueenSolver::PrintSolutions(int N, vector<vector<int>>& solutions) {
 			}
 			// if last column, add the endlines 
 			else {
-				for(int row = 0; row < N; row++)
+				for (int row = 0; row < N; row++)
 					text[row * (N + 1) + column] = '\n';
 			}
 		}
