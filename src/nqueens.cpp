@@ -2,41 +2,71 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <fstream>
+#include <chrono>
 
 using namespace std; 
 #define MAX_N 10
-
-/*
-*   The below N-Queens chessboard formulation is as follows:
-*       We know that at a single row, there can only be 1 Queen
-*       The state of the chessboard with regards to the Queens' positions then just needs to store N numbers:
-*           for each row, store **the column that the queen is located** (which is an integer between 0 and N-1)
-*   The algorithm used here works as follows:
-*       Create an empty chessboard
-*       Try placing a queen at each column in the first row
-*       After each such placement, test the state of the chessboard. If it's still valid, then
-*           Try placing a queen at each column in the SECOND row (the first row already stores a queen placement at a column there)
-*           After each such placement in the second row, test the state of the chessboard. If it's still valid, then
-*               Try placing a queen at each column in the THIRD row (the first and second rows already store a queen placement at columns there)
-*               ...
-* 
-*    This algorithm is recursive: It applies the same logic again and again, while modifying the internal state.
-*    GPUs and parallelism DO NOT WORK WELL WITH RECURSION. So, you need to come up with a solution that achieves the same results WITHOUT RECURSION, so that you can then convert it to OpenMP and GPU
-*    Feel free to use existing resources (e.g. how to remove recursion), but REFERENCE EVERYTHING YOU USE, but DON'T COPY-PASTE ANY SOLUTION FROM ANY OBSCURE WEBSITES. 
-*/
+#define TEST_RUNS 5 
 
 void CalculateSolutionsBruteForce(int N, vector<vector<int>>& solutions);
 void PrintSolutions(int N, vector<vector<int>>& solutions);
 bool CheckIfValidSolution(int N, int* rowIndices);
+void CalculateAllSolutions(bool print);
+
+int main(int argc, char** argv)
+{
+	bool PRINT_SOLUTIONS = false;
+	CalculateAllSolutions(PRINT_SOLUTIONS);
+}
 
 // This solutions uses a heuristic that there is only one Queen in a column
-void CalculateAllSolutions(int N, bool print)
+void CalculateAllSolutions(bool print)
 {
-	vector<vector<int>> solutions;
-	CalculateSolutionsBruteForce(N, solutions);
-	printf("N=%d, solutions=%d\n", N, (int)solutions.size());
-	if (print)
-		PrintSolutions(N, solutions);
+	ofstream data("data.csv");
+	for (int N = 4; N <= MAX_N; N++) {
+		data << "N " << N << "\n";
+		double meanTime = 0;
+		int solutionsCount;
+
+		if (N < 10) {
+			for (int run = 0; run < TEST_RUNS; run++) {
+				vector<vector<int>> solutions;
+
+				auto startTime = chrono::system_clock::now();
+				CalculateSolutionsBruteForce(N, solutions);
+				auto endTime = chrono::system_clock::now();
+
+				auto total = endTime - startTime;
+				auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
+				data << totalTime << "\n";
+				meanTime += totalTime;
+				solutionsCount = solutions.size();
+
+				printf("N=%d, run=%d, run time=%lld\n", N, run, totalTime);
+
+				if (run == 0 && print)
+					PrintSolutions(N, solutions);
+			}
+			meanTime /= (double)TEST_RUNS;
+			printf("N=%d, solutions=%d, mean time=%f\n", N, solutionsCount, meanTime);
+		}
+		else {
+			vector<vector<int>> solutions;
+
+			auto startTime = chrono::system_clock::now();
+			CalculateSolutionsBruteForce(N, solutions);
+			auto endTime = chrono::system_clock::now();
+
+			auto total = endTime - startTime;
+			auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
+			data << totalTime << "\n";
+			meanTime += totalTime;
+			solutionsCount = solutions.size();
+
+			printf("N=%d, solutions=%d, mean time=%f\n", N, solutionsCount, meanTime);
+		}
+	}
 }
 
 void CalculateSolutionsBruteForce(int N, vector<vector<int>>& solutions) {
@@ -126,8 +156,3 @@ void PrintSolutions(int N, vector<vector<int>>& solutions) {
 	}
 }
 
-int main(int argc, char** argv)
-{
-    for (int N = 4; N <= MAX_N; ++N)
-        CalculateAllSolutions(N, false);
-}
