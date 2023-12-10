@@ -5,12 +5,13 @@
 #include <iostream>
 #include <chrono>
 
+
 #define MAX_N 10
 
 using namespace std;
 
 void CalculateAllSolutions(bool print);
-void CalculateSolutionsCUDA(int N, vector<vector<int>>& solutions);
+void CalculateSolutionsCUDA(int N, vector<vector<int>>& solutions, int* solutionsCount);
 __device__ bool CheckIfValidSolution(int N, int* rowIndices);
 __global__ void GenerateValidCombination(int N, __int64 possibleCombinations, int* solutionsBuffer, int* solutionsCount);
 __device__ void GenerateCombination(int N, __int64 currentCombination, int* rowIndices);
@@ -32,7 +33,7 @@ void CalculateAllSolutions(bool print) {
 		vector<vector<int>> solutions;
 
 		auto startTime = chrono::system_clock::now();
-		CalculateSolutionsCUDA(N, solutions);
+		CalculateSolutionsCUDA(N, solutions, &solutionsCount);
 		auto endTime = chrono::system_clock::now();
 
 		auto total = endTime - startTime;
@@ -47,16 +48,19 @@ void CalculateAllSolutions(bool print) {
 	}
 }
 
-void CalculateSolutionsCUDA(int N, vector<vector<int>>& solutions) {
+void CalculateSolutionsCUDA(int N, vector<vector<int>>& solutions, int* solutionsCount) {
 	__int64 possibleCombinations = powl(N, N); // use powl abnd __int64 to fit the biggest numbers
+
+	// initialise host memory
+	*solutionsCount = 0;
 
 	// allocate device memory
 	int* solutionsBuffer = nullptr;
-	int* solutionsCount = 0;
+	int* countBuffer = nullptr;
 	// since the biggest N supported is 10, the maximum number of solutions is 724
 	size_t solutionsSize = 724 * sizeof(int);
 	cudaMalloc((void**)&solutionsBuffer, solutionsSize);
-	cudaMalloc((void**)&solutionsCount, sizeof(int));
+	cudaMalloc((void**)&solutionsBuffer, sizeof(int));
 
 	// copy data to device 
 	cudaMemcpy(solutionsBuffer, solutionsCount, sizeof(int), cudaMemcpyHostToDevice);
@@ -66,11 +70,23 @@ void CalculateSolutionsCUDA(int N, vector<vector<int>>& solutions) {
 	cudaDeviceSynchronize();
 
 	// copy the solutions from device to host
-	cudaMemcpy(&solutions, solutionsBuffer, solutionsSize, cudaMemcpyDeviceToHost);
+	// copy the solutions from device to host
+	int* h_solutions = (int*)malloc(solutionsSize); // Assuming maximum size is 724
+	cudaMemcpy(&h_solutions, solutionsBuffer, solutionsSize, cudaMemcpyDeviceToHost);
+	cudaMemcpy(solutionsCount, countBuffer, sizeof(int), cudaMemcpyDeviceToHost);
 
 	// clean up resources on device
 	cudaFree(solutionsBuffer);
 	cudaFree(solutionsCount); // solutionsCount is only used within the device for indexing so no need to copy unnecessarily
+
+
+	for (int i = 0; i < *solutionsCount; i++)
+	{
+		std::vector<int> solution = std::vector<int>();
+		for (int j = 0; j < N; j++)
+			solution.push_back(h_solutions[N * i + j]);
+		solutions.push_back(solution);
+	}
 }
 
 __global__ void GenerateValidCombination(int N, __int64 possibleCombinations, int* solutionsBuffer, int* solutionsCount) {
