@@ -8,7 +8,7 @@
 
 using namespace std;
 
-#define TEST_RUNS 10
+#define TEST_RUNS 5
 #define MAX_N 10
 
 // This solutions uses a heuristic that there is only one Queen in a column
@@ -20,33 +20,36 @@ void NQueenSolver::CalculateAllSolutions(bool print)
 		double meanTime = 0;
 		int solutionsCount;
 
-		for (int run = 0; run < TEST_RUNS; run++) {
-			vector<vector<int>> solutions;
+		for (int threads = 8; threads <= 128; threads *= 2) {
+			data << "Threads " << threads << "\n";
+			for (int run = 0; run < TEST_RUNS; run++) {
+				vector<vector<int>> solutions;
 
-			auto startTime = chrono::system_clock::now();
-			CalculateSolutionsBruteForce(N, solutions);
-			auto endTime = chrono::system_clock::now();
+				auto startTime = chrono::system_clock::now();
+				CalculateSolutionsBruteForce(N, solutions, threads);
+				auto endTime = chrono::system_clock::now();
 
-			auto total = endTime - startTime;
-			auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
-			data << totalTime << "\n";
-			meanTime += totalTime;
-			solutionsCount = solutions.size();
-			printf("N=%d, run=%d, run time=%lld\n", N, run, totalTime);
+				auto total = endTime - startTime;
+				auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
+				data << totalTime << "\n";
+				meanTime += totalTime;
+				solutionsCount = solutions.size();
+				printf("N=%d, run=%d, run time=%lld\n", N, run, totalTime);
 
-			if (run == 0 && print)
-				PrintSolutions(N, solutions);
+				if (run == 0 && print)
+					PrintSolutions(N, solutions);
+			}
+
+			meanTime /= (double)TEST_RUNS;
+			printf("N=%d, threads=%d, solutions=%d, mean time=%f\n", N, threads, solutionsCount, meanTime);
 		}
-
-		meanTime /= (double)TEST_RUNS;
-		printf("N=%d, solutions=%d, mean time=%f\n", N, solutionsCount, meanTime);
 	}
 }
 
-void NQueenSolver::CalculateSolutionsBruteForce(int N, vector<vector<int>>& solutions) {
+void NQueenSolver::CalculateSolutionsBruteForce(int N, vector<vector<int>>& solutions, int threads) {
 	// since there is a single Queen in each row, the number of possibilities are limited to N^N
 	__int64 possibleCombinations = powl(N, N); // use powl abnd __int64 to fit the biggest numbers
-#pragma omp parallel for shared(solutions)
+#pragma omp parallel for shared(solutions) num_threads(threads)
 	for (__int64 combination = 0; combination < possibleCombinations; combination++)
 	{
 		// this approach uses convertion to N-base number 
