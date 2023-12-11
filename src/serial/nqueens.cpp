@@ -1,18 +1,13 @@
 #include <corecrt_math.h>
 #include <string>
 #include <iostream>
-#include <vector>
 #include <fstream>
 #include <chrono>
+#include "nqueens.h"
 
 using namespace std; 
 #define MAX_N 10
 #define TEST_RUNS 5 
-
-void CalculateSolutionsBruteForce(int N, vector<vector<int>>& solutions);
-void PrintSolutions(int N, vector<vector<int>>& solutions);
-bool CheckIfValidSolution(int N, int* rowIndices);
-void CalculateAllSolutions(bool print);
 
 int main(int argc, char** argv)
 {
@@ -29,29 +24,7 @@ void CalculateAllSolutions(bool print)
 		double meanTime = 0;
 		int solutionsCount;
 
-		if (N < 10) {
-			for (int run = 0; run < TEST_RUNS; run++) {
-				vector<vector<int>> solutions;
-
-				auto startTime = chrono::system_clock::now();
-				CalculateSolutionsBruteForce(N, solutions);
-				auto endTime = chrono::system_clock::now();
-
-				auto total = endTime - startTime;
-				auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
-				data << totalTime << "\n";
-				meanTime += totalTime;
-				solutionsCount = solutions.size();
-
-				printf("N=%d, run=%d, run time=%lld\n", N, run, totalTime);
-
-				if (run == 0 && print)
-					PrintSolutions(N, solutions);
-			}
-			meanTime /= (double)TEST_RUNS;
-			printf("N=%d, solutions=%d, mean time=%f\n", N, solutionsCount, meanTime);
-		}
-		else {
+		for (int run = 0; run < TEST_RUNS; run++) {
 			vector<vector<int>> solutions;
 
 			auto startTime = chrono::system_clock::now();
@@ -64,8 +37,13 @@ void CalculateAllSolutions(bool print)
 			meanTime += totalTime;
 			solutionsCount = solutions.size();
 
-			printf("N=%d, solutions=%d, mean time=%f\n", N, solutionsCount, meanTime);
+			printf("N=%d, run=%d, run time=%lld\n", N, run, totalTime);
+
+			if (run == 0 && print)
+				PrintSolutions(N, solutions);
 		}
+		meanTime /= (double)TEST_RUNS;
+		printf("N=%d, solutions=%d, mean time=%f\n", N, solutionsCount, meanTime);
 	}
 }
 
@@ -74,6 +52,7 @@ void CalculateSolutionsBruteForce(int N, vector<vector<int>>& solutions) {
 	__int64 possibleCombinations = powl(N, N); // use powl and __int64 to fit the biggest numbers
 	for (__int64 combination = 0; combination < possibleCombinations; combination++)
 	{
+		bool validSolution = true;
 		// this approach uses convertion to N-base number 
 		// to get the sequence of row indices for Queens in subsequent columns
 		__int64 conversionBase = combination;
@@ -85,10 +64,13 @@ void CalculateSolutionsBruteForce(int N, vector<vector<int>>& solutions) {
 		{
 			rowIndices[column] = conversionBase % N; // this is the row index for this column
 			conversionBase = conversionBase / N;
-		}
 
-		if (CheckIfValidSolution(N, rowIndices))
-		{
+			if (!CheckIfValidSolution(column, rowIndices)) {
+				validSolution = false;
+				break;
+			}
+		}
+		if (validSolution) {
 			vector<int> temp;
 			for (int i = 0; i < N; i++)
 			{
@@ -102,26 +84,22 @@ void CalculateSolutionsBruteForce(int N, vector<vector<int>>& solutions) {
 /// <summary>
 /// Check if the combination is a valid solution for N-Queens problem
 /// </summary>
-/// <param name="N"></param>
+/// <param name="lastFilledColumn"></param>
 /// <param name="rowIndices">combination of row indices to check</param>
 /// <returns></returns>
-bool CheckIfValidSolution(int N, int* rowIndices)
+bool CheckIfValidSolution(int lastFilledColumn, int* rowIndices)
 {
-	// partially adapted from: https://stackoverflow.com/questions/50379511/less-than-n-loops-for-solving-the-n-queens-with-no-use-of-recursion
-	// compare each column's row index to every other column's index
-	for (int column = 0; column < N; column++)
+	// Check against other queens
+	for (int column = 0; column < lastFilledColumn; ++column)
 	{
-		for (int otherColumn = column + 1; otherColumn <= N; otherColumn++)
-		{
-			// check for the same row index
-			if (rowIndices[column] == rowIndices[otherColumn])
-				return false;
-
-			// check for diagonals
-			if (abs(rowIndices[column] - rowIndices[otherColumn])
-				== abs(column - otherColumn))
-				return false;
-		}
+		// check the rows
+		if (rowIndices[column] == rowIndices[lastFilledColumn])
+			return false;
+		// check the 2 diagonals
+		const auto col1 = rowIndices[lastFilledColumn] - (lastFilledColumn - column);
+		const auto col2 = rowIndices[lastFilledColumn] + (lastFilledColumn - column);
+		if (rowIndices[column] == col1 || rowIndices[column] == col2)
+			return false;
 	}
 	return true;
 }
