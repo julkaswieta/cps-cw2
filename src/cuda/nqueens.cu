@@ -8,11 +8,13 @@
 #include "nqueens.h"
 
 #define MAX_N 10
+#define TEST_RUNS 5
+#define MAX_SOLUTIONS 724 // for N = 10
 
 using namespace std;
 
 int main() {
-    bool PRINT_SOLUTIONS = false;
+    bool PRINT_SOLUTIONS = true;
 	CalculateAllSolutions(PRINT_SOLUTIONS);
 }
 
@@ -20,66 +22,76 @@ void CalculateAllSolutions(bool print) {
     ofstream data("data.csv");
     for (int N = 4; N <= MAX_N; N++) {
         data << "N " << N << "\n";
-        double meanTime = 0;
-        vector<vector<int>> solutions;
-        int solutionsCount = 0;
+        int solutionsCount;
+ 
+        for (int blockSize = 32; blockSize <= 1024; blockSize *= 2) {
+            data << "Block size " << blockSize << "\n";
+            double meanTime = 0;
 
-        auto startTime = chrono::system_clock::now();
-        CalculateSolutionsCUDA(N, solutions, &solutionsCount);
-        auto endTime = chrono::system_clock::now();
+            for (int run = 0; run < 5; run++) {
+                vector<vector<int>> solutions;
 
-        auto total = endTime - startTime;
-        auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
-        data << totalTime << "\n";
-        meanTime += totalTime;
-        solutionsCount = solutions.size();
-        printf("N=%d, solutions=%d, run time=%lld\n", N, solutionsCount, totalTime);
+                auto startTime = chrono::system_clock::now();
+                CalculateSolutionsCUDA(N, blockSize, solutions, &solutionsCount);
+                auto endTime = chrono::system_clock::now();
 
-        if (print)
-            PrintSolutions(N, solutions);
+                auto total = endTime - startTime;
+                auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
+                data << totalTime << "\n";
+                meanTime += totalTime;
+                solutionsCount = solutions.size();
+
+                if (blockSize == 32 && run == 0 && print)
+                    PrintSolutions(N, solutions);
+            }
+            meanTime /= TEST_RUNS;
+            printf("N=%d, block size=%d, solutions=%d, run time=%llf\n", N, blockSize, solutionsCount, meanTime);
+        }
     }
 }
 
-void CalculateSolutionsCUDA(int N, vector<vector<int>>& solutions, int* solutionsCount) {
+void CalculateSolutionsCUDA(int N, int blockSize, vector<vector<int>>& solutions, int* solutionsCount) {
+    __int64 possibleCombinations = powl(N, N); // use powl and __int64 to fit the biggest numbers
+
+    size_t solutionsSize = sizeof(int[MAX_N]) * MAX_SOLUTIONS; // a solutions is an array of size N so calculate the memory for int[MAX_N]
+
+    // initialise host memory
     *solutionsCount = 0;
+    int* solutionsRaw = (int*)malloc(solutionsSize);
+
+    // initialise device memory
     int* solutionsBuffer = nullptr;
     int* countBuffer = nullptr;
 
-    __int64 possibleCombinations = powl(N, N);
-
-    size_t solutionsSize = powl(N, 5) * sizeof(int*); 
+    // allocate device memory
     cudaMalloc((void**)&solutionsBuffer, solutionsSize);
     cudaMalloc((void**)&countBuffer, sizeof(int));
 
+    // copy the starting number of solutions to device to initialise the in-device counter 
     cudaMemcpy(countBuffer, solutionsCount, sizeof(int), cudaMemcpyHostToDevice);
 
-    int blockSize = 1024;
     // if there are less possible combinations than blockSize, have only one block of blockSize
     long long int gridSize = (possibleCombinations / blockSize < 1) ? 1 : possibleCombinations / blockSize + 1;
 
-    GenerateValidCombination <<<gridSize, blockSize >>> (N, possibleCombinations, solutionsBuffer, countBuffer);
+    // call the kernel
+    GenerateCombinations <<<gridSize, blockSize >>> (N, possibleCombinations, solutionsBuffer, countBuffer);
 
-    cudaDeviceSynchronize();
-
+    // copy the results back to the host and free device memory 
+    cudaMemcpy(solutionsRaw, solutionsBuffer, solutionsSize, cudaMemcpyDeviceToHost);
     cudaMemcpy(solutionsCount, countBuffer, sizeof(int), cudaMemcpyDeviceToHost);
     cudaFree(countBuffer);
-
-    int* solutionsRaw = (int*)malloc(solutionsSize);
-    cudaMemcpy(solutionsRaw, solutionsBuffer, solutionsSize, cudaMemcpyDeviceToHost);
     cudaFree(solutionsBuffer);
 
-    for (__int64 i = 0; i < *solutionsCount; i++) {
-        std::vector<int> solution;
-        for (int j = 0; j < N; j++)
-            solution.push_back(solutionsRaw[N * i + j]);
+    // process the solutions array to the final solutions vector
+    for (int i = 0; i < *solutionsCount; i++) {
+        std::vector<int> solution(solutionsRaw + (N * i), solutionsRaw + (N * (i + 1)));
         solutions.push_back(solution);
     }
 
-    free(solutionsRaw);
-
+    free(solutionsRaw); // clean up host
 }
 
-__global__ void GenerateValidCombination(int N, __int64 possibleCombinations, int* solutionsBuffer, int* countBuffer) {
+__global__ void GenerateCombinations(int N, __int64 possibleCombinations, int* solutionsBuffer, int* countBuffer) {
     __int64 currentCombination = threadIdx.x + blockIdx.x * blockDim.x; // this is also the conversion base
 
     // check if the kernel has not gone over the possible combination number 
@@ -89,15 +101,14 @@ __global__ void GenerateValidCombination(int N, __int64 possibleCombinations, in
         return;
 
     int rowIndices[MAX_N];
-    if (GenerateCombination(N, currentCombination, &rowIndices[0])) {
-
+    if (GenerateValidCombination(N, currentCombination, &rowIndices[0])) {
         int solutionIndex = atomicAdd(countBuffer, 1); // this returns the value of countBuffer before incrementing so will act as the index to solutionsBuffer
-        for (int column = 0; column < N; column++)
+        for (int column = 0; column < N; column++) // store combination in solutions buffer
             solutionsBuffer[N * solutionIndex + column] = rowIndices[column];
     }
 }
 
-__device__ bool GenerateCombination(int N, __int64 currentCombination, int* rowIndices) {
+__device__ bool GenerateValidCombination(int N, __int64 currentCombination, int* rowIndices) {
     for (int column = 0; column < N; column++) {
         rowIndices[column] = currentCombination % N;
         currentCombination /= N;
@@ -114,6 +125,7 @@ __device__ bool CheckIfValidSolution(int lastFilledColumn, int* rowIndices)
     // Check against other queens
     for (int column = 0; column < lastFilledColumn; ++column)
     {
+        // check the rows
         if (rowIndices[column] == rowIndices[lastFilledColumn])
             return false;
         // check the 2 diagonals
@@ -154,4 +166,3 @@ void PrintSolutions(int N, vector<vector<int>>& solutions) {
         cout << text << "\n";
     }
 }
-
