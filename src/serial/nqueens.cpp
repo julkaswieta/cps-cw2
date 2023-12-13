@@ -7,7 +7,6 @@
 
 using namespace std; 
 #define MAX_N 10
-#define TEST_RUNS 5 
 
 int main(int argc, char** argv)
 {
@@ -18,32 +17,22 @@ int main(int argc, char** argv)
 // This solutions uses a heuristic that there is only one Queen in a column
 void CalculateAllSolutions(bool print)
 {
-	ofstream data("data.csv");
 	for (int N = 4; N <= MAX_N; N++) {
-		data << "N " << N << "\n";
-		double meanTime = 0;
 		int solutionsCount;
+		vector<vector<int>> solutions;
 
-		for (int run = 0; run < TEST_RUNS; run++) {
-			vector<vector<int>> solutions;
+		auto startTime = chrono::system_clock::now();
+		CalculateSolutionsBruteForce(N, solutions);
+		auto endTime = chrono::system_clock::now();
 
-			auto startTime = chrono::system_clock::now();
-			CalculateSolutionsBruteForce(N, solutions);
-			auto endTime = chrono::system_clock::now();
+		auto total = endTime - startTime;
+		auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
+		solutionsCount = solutions.size();
 
-			auto total = endTime - startTime;
-			auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
-			data << totalTime << "\n";
-			meanTime += totalTime;
-			solutionsCount = solutions.size();
+		if (print)
+			PrintSolutions(N, solutions);
 
-			printf("N=%d, run=%d, run time=%lld\n", N, run, totalTime);
-
-			if (run == 0 && print)
-				PrintSolutions(N, solutions);
-		}
-		meanTime /= (double)TEST_RUNS;
-		printf("N=%d, solutions=%d, mean time=%f\n", N, solutionsCount, meanTime);
+		printf("N=%d, solutions=%d, total time=%lld\n", N, solutionsCount, totalTime);
 	}
 }
 
@@ -133,4 +122,3 @@ void PrintSolutions(int N, vector<vector<int>>& solutions) {
 		std::cout << text << "\n";
 	}
 }
-

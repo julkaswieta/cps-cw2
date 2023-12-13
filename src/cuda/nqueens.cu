@@ -8,49 +8,37 @@
 #include "nqueens.h"
 
 #define MAX_N 10
-#define TEST_RUNS 5
 #define MAX_SOLUTIONS 724 // for N = 10
 
 using namespace std;
 
 int main() {
-    bool PRINT_SOLUTIONS = true;
+    bool PRINT_SOLUTIONS = false;
 	CalculateAllSolutions(PRINT_SOLUTIONS);
 }
 
 void CalculateAllSolutions(bool print) {
-    ofstream data("data.csv");
     for (int N = 4; N <= MAX_N; N++) {
-        data << "N " << N << "\n";
+        vector<vector<int>> solutions;
         int solutionsCount;
- 
-        for (int blockSize = 32; blockSize <= 1024; blockSize *= 2) {
-            data << "Block size " << blockSize << "\n";
-            double meanTime = 0;
 
-            for (int run = 0; run < 5; run++) {
-                vector<vector<int>> solutions;
+        auto startTime = chrono::system_clock::now();
+        CalculateSolutionsCUDA(N, solutions, &solutionsCount);
+        auto endTime = chrono::system_clock::now();
 
-                auto startTime = chrono::system_clock::now();
-                CalculateSolutionsCUDA(N, blockSize, solutions, &solutionsCount);
-                auto endTime = chrono::system_clock::now();
+        auto total = endTime - startTime;
+        auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
+        solutionsCount = solutions.size();
 
-                auto total = endTime - startTime;
-                auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
-                data << totalTime << "\n";
-                meanTime += totalTime;
-                solutionsCount = solutions.size();
+        if (print)
+            PrintSolutions(N, solutions);
+        printf("N=%d, solutions=%d, run time=%lld\n", N, solutionsCount, totalTime);
 
-                if (blockSize == 32 && run == 0 && print)
-                    PrintSolutions(N, solutions);
-            }
-            meanTime /= TEST_RUNS;
-            printf("N=%d, block size=%d, solutions=%d, run time=%llf\n", N, blockSize, solutionsCount, meanTime);
-        }
     }
 }
 
-void CalculateSolutionsCUDA(int N, int blockSize, vector<vector<int>>& solutions, int* solutionsCount) {
+// sets up the GPU and executes the kernel
+void CalculateSolutionsCUDA(int N, vector<vector<int>>& solutions, int* solutionsCount) {
     __int64 possibleCombinations = powl(N, N); // use powl and __int64 to fit the biggest numbers
 
     size_t solutionsSize = sizeof(int[MAX_N]) * MAX_SOLUTIONS; // a solutions is an array of size N so calculate the memory for int[MAX_N]
@@ -70,8 +58,9 @@ void CalculateSolutionsCUDA(int N, int blockSize, vector<vector<int>>& solutions
     // copy the starting number of solutions to device to initialise the in-device counter 
     cudaMemcpy(countBuffer, solutionsCount, sizeof(int), cudaMemcpyHostToDevice);
 
+    int blockSize = 1024;
     // if there are less possible combinations than blockSize, have only one block of blockSize
-    long long int gridSize = (possibleCombinations / blockSize < 1) ? 1 : possibleCombinations / blockSize + 1;
+    __int64 gridSize = (possibleCombinations / blockSize < 1) ? 1 : possibleCombinations / blockSize + 1;
 
     // call the kernel
     GenerateCombinations <<<gridSize, blockSize >>> (N, possibleCombinations, solutionsBuffer, countBuffer);
@@ -91,6 +80,7 @@ void CalculateSolutionsCUDA(int N, int blockSize, vector<vector<int>>& solutions
     free(solutionsRaw); // clean up host
 }
 
+// Main CUDA kernel for generating solutions
 __global__ void GenerateCombinations(int N, __int64 possibleCombinations, int* solutionsBuffer, int* countBuffer) {
     __int64 currentCombination = threadIdx.x + blockIdx.x * blockDim.x; // this is also the conversion base
 

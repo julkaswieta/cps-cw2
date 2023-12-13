@@ -9,7 +9,6 @@
 
 using namespace std;
 
-#define TEST_RUNS 5
 #define MAX_N 10
 
 // This solutions uses a heuristic that there is only one Queen in a column
@@ -17,34 +16,26 @@ void NQueenSolver::CalculateAllSolutions(bool print)
 {
 	int threads = thread::hardware_concurrency();
 
-	ofstream data("data.csv");
 	for (int N = 4; N <= MAX_N; N++) {
-		data << "N " << N << "\n";
-		double meanTime = 0;
 		int solutionsCount;
-		for (int run = 0; run < TEST_RUNS; run++) {
-			vector<vector<int>> solutions;
+		vector<vector<int>> solutions;
 
-			auto startTime = chrono::system_clock::now();
-			CalculateSolutionsBruteForce(N, solutions, threads);
-			auto endTime = chrono::system_clock::now();
+		auto startTime = chrono::system_clock::now();
+		CalculateSolutionsBruteForce(N, solutions, threads);
+		auto endTime = chrono::system_clock::now();
 
-			auto total = endTime - startTime;
-			auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
-			data << totalTime << "\n";
-			meanTime += totalTime;
-			solutionsCount = solutions.size();
-			printf("N=%d, run=%d, run time=%lld\n", N, run, totalTime);
+		auto total = endTime - startTime;
+		auto totalTime = chrono::duration_cast<chrono::microseconds>(total).count();
+		solutionsCount = solutions.size();
 
-			if (run == 0 && print)
-				PrintSolutions(N, solutions);
-		}
+		if (print)
+			PrintSolutions(N, solutions);
 
-		meanTime /= (double)TEST_RUNS;
-		printf("N=%d, threads=%d, solutions=%d, mean time=%f\n", N, threads, solutionsCount, meanTime);
+		printf("N=%d, solutions=%d, total time=%lld\n", N, solutionsCount, totalTime);
 	}
 }
 
+// main function for calculating solutions
 void NQueenSolver::CalculateSolutionsBruteForce(int N, vector<vector<int>>& solutions, int threads) {
 	// since there is a single Queen in each row, the number of possibilities are limited to N^N
 	__int64 possibleCombinations = powl(N, N); // use powl abnd __int64 to fit the biggest numbers
@@ -130,6 +121,6 @@ void NQueenSolver::PrintSolutions(int N, vector<vector<int>>& solutions) {
 					text[row * (N + 1) + column] = '\n';
 			}
 		}
-		std::cout << text << "\n";
+		cout << text << "\n";
 	}
 }

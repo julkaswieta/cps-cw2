@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 
 void CalculateAllSolutions(bool print);
-void CalculateSolutionsCUDA(int N, int blockSize, std::vector<std::vector<int>>& solutions, int* solutionsCount);
+void CalculateSolutionsCUDA(int N, std::vector<std::vector<int>>& solutions, int* solutionsCount);
 void PrintSolutions(int N, std::vector<std::vector<int>>& solutions);
 
 // CUDA kernels
